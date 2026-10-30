@@ -1,0 +1,103 @@
+{
+  "name": "voldena-depolama-duzenleyicisi",
+  "version": "2.1.0",
+  "description": "Voldena gelişmiş disk analizi ve kontrollü depolama yönetimi",
+  "main": "main.js",
+  "author": "Voldena",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.js",
+    "build": "electron-builder --win nsis portable --x64 --publish never",
+    "build:dir": "electron-builder --win --dir --x64 --publish never",
+    "build:native": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1",
+    "prebuild": "npm run build:native",
+    "prebuild:dir": "npm run build:native"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  },
+  "devDependencies": {
+    "electron": "45.1.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.voldena.storage",
+    "productName": "Voldena Depolama Düzenleyicisi",
+    "executableName": "VoldenaStorage",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*.js",
+      "src/**/*.html",
+      "src/**/*.css",
+      "build/icon.ico",
+      "build/tray.png",
+      "package.json",
+      "!src/native/**"
+    ],
+    "extraResources": [
+      {
+        "from": "src/native/bin",
+        "to": "native",
+        "filter": [
+          "*.exe"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
+      "verifyUpdateCodeSignature": false,
+      "artifactName": "Voldena-Storage-${version}-${arch}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "installerLanguages": [
+        "tr_TR",
+        "en_US"
+      ],
+      "language": "1055"
+    },
+    "portable": {
+      "requestExecutionLevel": "admin",
+      "artifactName": "Voldena-Storage-${version}-x64-portable.exe"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yavuzefekizmaz",
+        "repo": "voldena-depolama-duzenleyicisi"
+      }
+    ]
+  }
+}

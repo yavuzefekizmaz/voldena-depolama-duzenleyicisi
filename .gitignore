@@ -1,0 +1,12 @@
+node_modules/
+release/
+test-artifacts/
+*.log
+*.tmp
+*.pfx
+*.pem
+.env*
+!.env.example
+src/native/bin/
+docs/research/evidence/
+.DS_Store
