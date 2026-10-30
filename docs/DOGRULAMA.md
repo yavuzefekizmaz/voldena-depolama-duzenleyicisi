@@ -87,9 +87,9 @@ Electron penceresinde `contextIsolation`, `sandbox` ve web güvenliği açık; N
 
 ## Dağıtım doğrulaması
 
-**SON_PAKET_DOGRULAMASI_BEKLENIYOR**
+2.1.0 setup (121.598.894 bayt) ve portable (110.790.560 bayt) üretildi. Her iki EXE ve paketlenmiş ana uygulamada gerçek PE kaynak manifesti `requireAdministrator` olarak doğrulandı. `latest.yml` sürüm/dosya adı ve SHA-512 özeti gerçek setup ile eşleşti. SHA-256 özetleri [PAKETLER.json](PAKETLER.json) içinde kayıtlıdır.
 
-Son Voldena markalı x64 setup ve portable derlemesi bu belgenin hazırlanması sırasında sürüyordu. Paketler oluşturulmadan ad, dosya boyutu, SHA-256, yönetici manifesti veya kurulum çalıştırması başarıyla doğrulandı denmez. Önceki geçici markalı deneme çıktıları son teslimat sayılmaz.
+Yerel teslimat `release/` içindeki 2.1.0 dosyalarıdır. Kurulumun gerçek çalıştırılması veya sürümler arası geçiş, yalnız manifest ve özet denetimleriyle doğrulanmış sayılmaz. Önceki geçici markalı deneme çıktıları teslimat değildir.
 
 Kaynak yapılandırması yönetici manifestini, kurulumda başlangıç/masaüstü/Başlat menüsü seçeneklerini ve GitHub güncelleme akışını içeriyor. Oturum başlangıcı, gerçek kurulum/kaldırma ve daha yeni sürüme uçtan uca güncelleme; yalnız kaynak testleriyle tamamlanmış sayılmaz. Portable sürüm kalıcı başlangıç/kısayol ayarları oluşturmaz; güncel EXE indirilerek değiştirilir.
 

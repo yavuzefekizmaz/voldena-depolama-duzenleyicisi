@@ -14,7 +14,8 @@ records = []
 for name in [f"Voldena-Storage-{version}-x64-setup.exe", f"Voldena-Storage-{version}-x64-portable.exe", "win-unpacked/VoldenaStorage.exe"]:
     file = root / name
     assert file.stat().st_size > 10_000_000, f"Incomplete executable: {name}"
-    pe = pefile.PE(str(file), fast_load=False)
+    pe = pefile.PE(str(file), fast_load=True)
+    pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_RESOURCE']])
     levels = []
     for resource_type in pe.DIRECTORY_ENTRY_RESOURCE.entries:
         if resource_type.id != 24:

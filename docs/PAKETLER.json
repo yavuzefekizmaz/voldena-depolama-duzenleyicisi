@@ -1,0 +1,24 @@
+{
+  "version": "2.1.0",
+  "artifacts": [
+    {
+      "file": "Voldena-Storage-2.1.0-x64-setup.exe",
+      "bytes": 121598894,
+      "sha256": "0a6e838b0c815f5f92a158d10f24350075753bf02ba9148648ab5f0c73b2cbfe",
+      "executionLevel": "requireAdministrator"
+    },
+    {
+      "file": "Voldena-Storage-2.1.0-x64-portable.exe",
+      "bytes": 110790560,
+      "sha256": "8fac5ce29554e13d5fbec8205645600687c89d9627b00a8c0a76460004528deb",
+      "executionLevel": "requireAdministrator"
+    },
+    {
+      "file": "win-unpacked/VoldenaStorage.exe",
+      "bytes": 249798656,
+      "sha256": "d63c1a1be1e7fa0311f527352fd1caf5388a1deda4b85d2a5b8137eaf312121a",
+      "executionLevel": "requireAdministrator"
+    }
+  ],
+  "updaterSha512Matches": true
+}

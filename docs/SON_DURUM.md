@@ -24,4 +24,4 @@
 
 **Tamamlandı sayılmayanlar:** Portable EXE’nin kendini otomatik değiştirmesi etkin değildir; yeni portable dosyası indirilip kapalıyken değiştirilir. Gerçek kurulu eski sürümden GitHub üzerinden yeni sürüme geçiş ve MSIX uygulama taşıması kullanıcı programları üzerinde uçtan uca uygulanmadı. Windows’un izin vermediği geri yükleme noktası oluşturulamaz. Bulut yer tutucuları, şifreli/sıkıştırılmış/seyrek dosyalar ve diskler arası salt okunur özel dosyalar açıklamalı olarak korunur. Her masaüstü programını güvenle başka diske taşıyabilen genel bir yöntem sunulmaz.
 
-Kurulum/paket özeti doğrulaması ve yayın adresi son paketleme adımında kaydedilir. Ham REA kanıtları, tarama yolları ve test dosyaları GitHub’a eklenmez.
+Setup ve portable üretildi; yönetici manifestleri ve güncelleme SHA-512 özeti doğrulandı. Ayrıntılar [PAKETLER.json](PAKETLER.json) içindedir. Yayın: https://github.com/yavuzefekizmaz/voldena-depolama-duzenleyicisi/releases/tag/v2.1.0 . Ham REA kanıtları, tarama yolları ve test dosyaları GitHub’a eklenmez.
