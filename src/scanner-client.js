@@ -6,6 +6,7 @@ class ScannerClient{
  fail(error){for(const p of this.pending.values())p.reject(error);this.pending.clear();this.worker=null;}
  call(method,...args){this.ensure();return new Promise((resolve,reject)=>{const id=++this.sequence;this.pending.set(id,{resolve,reject});this.worker.postMessage({id,method,args});});}
  startScan(target,onProgress,options={}){this.onProgress=onProgress;this.isScanning=true;return this.call('startScan',target,options).finally(()=>{this.isScanning=false;});}
+ selectScan(target){return this.call('selectScan',target);}
  findDuplicates(options={},onProgress){this.onAnalysisProgress=onProgress;this.analysisRunning=true;return this.call('findDuplicates',options).finally(()=>{this.analysisRunning=false;});}
  cancelAnalysis(){return this.call('cancelAnalysis');}getSpaceMap(...a){return this.call('getSpaceMap',...a);}getFileStatistics(){return this.call('getFileStatistics');}getDuplicateGroups(...a){return this.call('getDuplicateGroups',...a);}validateDuplicateSelection(...a){return this.call('validateDuplicateSelection',...a);}exportSnapshot(...a){return this.call('exportSnapshot',...a);}
  cancel(){return this.worker?this.call('cancel'):Promise.resolve();}pause(){return this.call('pause');}resume(){return this.call('resume');}

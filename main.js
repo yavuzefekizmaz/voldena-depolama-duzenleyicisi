@@ -12,7 +12,8 @@ const {SettingsStore}=require('./src/services/settings');
 const {FileOperations}=require('./src/services/file-operations');
 const {AuditHistory,TechnicalLog}=require('./src/services/audit');
 const {applyWindowsIntegration}=require('./src/services/windows-integration');
-const {ProgramsService}=require('./src/services/programs');
+const {ProgramsService,powershell}=require('./src/services/programs');
+const {DesktopRelocation}=require('./src/services/desktop-relocation');
 const UpdateService=require('./src/services/updater');
 const {acknowledgePortableUpdate}=require('./src/services/portable-updater');
 const {metadata,verifyWindowsSafety}=require('./src/services/windows-metadata');
@@ -32,10 +33,11 @@ let mainWindow=null,tray=null,isQuitting=false,updateInstallPending=false,update
 let drivesSnapshot=null,analysisRegistration=null;
 const pageURL=pathToFileURL(path.join(__dirname,'src','index.html')).href;
 const log=(message,details)=>logger.write(details instanceof Error?'error':'info',message,details);
-const restorePoints=new(require('./src/services/restore-points'))({log});
+const restorePoints=new(require('./src/services/restore-points'))({log,directory:baseDirectory});
 const send=(event,data)=>{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.webContents.isDestroyed())mainWindow.webContents.send(event,data);};
 const cleanup=new CleanupEngine({audit,log});
 const operations=new FileOperations({journalPath:path.join(baseDirectory,'move-journal.jsonl'),audit,emit:send,onRemoved:async p=>scanner.removeNodeFromTree(p)});
+const desktopRelocation=new DesktopRelocation({runner:powershell,audit,log,emit:send,directory:baseDirectory});
 const programs=new ProgramsService({getNodeInfo:p=>scanner.getNodeInfo(p),emit:send,log,audit});
 const thumbnails=new Thumbnails({nativeImage,app,isCloudPath:async target=>{
   if(!drivesSnapshot)drivesSnapshot=await getDrives();
@@ -103,6 +105,7 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
         }
       }
     }
+    await desktopRelocation.recover();
     const firstLaunch=!fs.existsSync(settings.file);await settings.load();
     if(firstLaunch&&app.isPackaged){try{const options=JSON.parse(await fs.promises.readFile(path.join(process.resourcesPath,'installer-options.json'),'utf8'));await settings.save(options);}catch(e){if(e.code!=='ENOENT')log('Kurulum seçenekleri okunamadı',e);}}
     createTray();createWindow();updater=new UpdateService(app,()=>settings.get(),send,log,{beforeInstall:prepareUpdateInstall,showInstallWindow:showUpdateInstallWindow,installError:updateInstallError});
@@ -138,7 +141,7 @@ const actionLogs={
   'check-for-updates':(_a,r)=>({message:'Güncelleme kontrolü istendi',details:{status:r.status}}),
   'download-update':(_a,r)=>({message:'Güncelleme indirildi',details:{status:r.status,version:r.availableVersion}}),
   'install-update':()=>({message:'Güncelleme kurulumu istendi'}),
-  'export-report':(_a,r)=>({message:'Büyük dosya raporu dışa aktarıldı',details:{path:r.path,canceled:r.canceled}}),
+  'export-report':(_a,r)=>({message:'Görünüm raporu dışa aktarıldı',details:{path:r.path,canceled:r.canceled}}),
   'export-history':(_a,r)=>({message:'İşlem geçmişi dışa aktarıldı',details:{path:r.path,canceled:r.canceled}}),
   'export-logs':(_a,r)=>({message:'Teknik günlük dışa aktarıldı',details:{path:r.path,canceled:r.canceled}})
 };
@@ -152,11 +155,11 @@ handle('window-action',action=>{if(action==='minimize')mainWindow.minimize();els
 handle('get-drives',async()=>{drivesSnapshot=await getDrives();return drivesSnapshot;});
 handle('select-folder-dialog',async()=>{const result=await dialog.showOpenDialog(mainWindow,{properties:['openDirectory'],title:'Taranacak klasörü seçin'});return result.canceled?null:result.filePaths[0];});
 handle('start-scan',async(target,options={})=>{
-  requirePath(target);const generation=++scanGeneration;log('Tarama başladı',{target,generation});
-  const result=await scanner.startScan(target,data=>{if(generation===scanGeneration)send('scan-progress',data);},options);
-  if(generation!==scanGeneration)return {canceled:true};
+  requirePath(target);log('Tarama istendi',{target,force:!!options.force});
+  const result=await scanner.startScan(target,data=>send('scan-progress',data),options);
   log('Tarama tamamlandı',{target,stats:result.stats,diagnostics:result.diagnostics});send('scan-complete',result);return result;
 });
+handle('select-scan',target=>scanner.selectScan(requirePath(target)));
 handle('stop-scan',()=>{scanner.cancel();return {stopped:true};});
 handle('pause-scan',()=>{scanner.pause();return {paused:true};});
 handle('resume-scan',()=>{scanner.resume();return {resumed:true};});
@@ -222,15 +225,18 @@ handle('save-settings',patch=>{
 handle('check-for-updates',()=>updater.check());
 handle('download-update',()=>updater.download());
 handle('install-update',()=>updater.install());
-handle('get-programs',()=>programs.getPrograms());
+handle('get-programs',()=>programs.getPrograms({force:true}));
+handle('plan-desktop-move',async id=>{const item=(await programs.getPrograms()).items.find(p=>p.id===id&&p.kind==='win32'&&p.canMove);if(!item)throw new Error('Taşınabilir uygulama bulunamadı.');const choice=await dialog.showOpenDialog(mainWindow,{title:'Uygulamanın hedef üst klasörünü seçin',properties:['openDirectory','createDirectory']});if(choice.canceled)return {canceled:true};return desktopRelocation.plan(item,choice.filePaths[0]);});
+handle('cancel-desktop-move',()=>desktopRelocation.cancel());
+handle('execute-desktop-move',id=>mutate(async()=>{const result=await desktopRelocation.execute(String(id));await scanner.removeNodeFromTree(result.source).catch(()=>{});programs.cached=null;return result;}));
 handle('get-program-move-targets',name=>programs.getProgramMoveTargets(String(name)));
 handle('plan-program-move',(name,volume)=>programs.planProgramMove(String(name),String(volume)));
 handle('execute-program-move',id=>mutate(()=>programs.executeProgramMove(String(id))));
 handle('open-system-settings',async section=>{const links={apps:'ms-settings:appsfeatures',storage:'ms-settings:storagesense',cleanup:'ms-settings:storagesense'};if(!links[section])throw new Error('Geçersiz ayar sayfası.');await shell.openExternal(links[section]);return {success:true};});
 handle('get-recommendations',async()=>{
   const page=await scanner.getLargeFiles({minSize:500*1024*1024,offset:0,limit:100});
-  const items=(page.items||[]).map(item=>({...item,...describePath(item.path,{isDir:false}),actions:['move','review'],
-    advice:describePath(item.path,{isDir:false}).advice||'Başka bir diske taşıyarak bu diskte alan açabilirsiniz. Yedeklediğiniz dosyayı silmeden önce kopyanın açıldığını doğrulayın.'}));
+  const items=(page.items||[]).map(item=>({...item,...describePath(item.path,item),actions:['move','review'],
+    advice:describePath(item.path,item).advice||'Başka bir diske taşıyarak bu diskte alan açabilirsiniz. Yedeklediğiniz dosyayı silmeden önce kopyanın açıldığını doğrulayın.'}));
   return {items,total:page.total||items.length,note:'Kişisel dosyalar otomatik silinmez. Buluta yüklemek, yerel kopyayı kaldırmadıkça disk alanı açmaz.'};
 });
 handle('get-history',options=>audit.get(options));
@@ -241,10 +247,11 @@ async function exportText(name,content,extension='csv'){
   const answer=await dialog.showSaveDialog(mainWindow,{defaultPath:name,filters:[{name:extension.toUpperCase(),extensions:[extension]}]});if(answer.canceled)return {canceled:true};
   checkExportTarget(answer.filePath);await fs.promises.writeFile(answer.filePath,'\ufeff'+content,'utf8');return {success:true,path:answer.filePath};
 }
-handle('export-report',async()=>{
-  const lines=[['Ad','Tür','Boyut (bayt)','Konum','Açıklama'].map(csv).join(';')];let offset=0;
-  for(;;){const page=await scanner.getLargeFiles({minSize:500*1024*1024,offset,limit:500});if(!page.items?.length)break;for(const i of page.items)lines.push([i.name,i.category,i.size,i.path,i.description].map(csv).join(';'));offset+=page.items.length;if(!page.hasMore)break;}
-  return exportText('Voldena-buyuk-dosyalar.csv',lines.join('\r\n'));
+handle('export-report',async(options={})=>{
+ const rows=[];if(options.view==='large'){for(let offset=0;;){const page=await scanner.getLargeFiles({...options.large,offset,limit:200});rows.push(...page.items);offset+=page.items.length;if(!page.hasMore||!page.items.length)break;}}
+ else if(Array.isArray(options.rows))rows.push(...options.rows.slice(0,50000));
+ const labels={tree:'dosya-agaci',large:'buyuk-dosyalar',programs:'kurulu-uygulamalar',cleanups:'yer-acma-onerileri',drives:'suruculer',analysis:'alan-analizi'};
+ return exportText('Voldena-'+(labels[options.view]||'rapor')+'.csv',require('./src/services/reports').reportCSV(rows));
 });
 handle('export-history',async()=>{
   const answer=await dialog.showSaveDialog(mainWindow,{defaultPath:'Voldena-silme-gecmisi.jsonl',filters:[{name:'JSON Lines',extensions:['jsonl']}]});if(answer.canceled)return {canceled:true};

@@ -35,6 +35,9 @@ class VoldeScan {
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool FindNextStreamW(IntPtr handle,out STREAM data);
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetVolumePathName(string path,StringBuilder root,uint capacity);
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetVolumeInformation(string root,StringBuilder name,uint nameCapacity,out uint serial,out uint componentLength,out uint flags,StringBuilder fileSystem,uint fileSystemCapacity);
+    [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct SHFILEINFO {public IntPtr icon;public int index;public uint attributes;[MarshalAs(UnmanagedType.ByValTStr,SizeConst=260)]public string name;[MarshalAs(UnmanagedType.ByValTStr,SizeConst=80)]public string type;}
+    [DllImport("shell32.dll",CharSet=CharSet.Unicode)] static extern IntPtr SHGetFileInfo(string path,uint attributes,out SHFILEINFO info,uint size,uint flags);
+    [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr icon);
     static StreamWriter output;
     static long serial=1;
     static string Q(string value) {
@@ -63,6 +66,11 @@ class VoldeScan {
         }
     }
     static long Millis(long filetime) {try{return (filetime-116444736000000000L)/10000;}catch{return 0;}}
+    static void IconServer(){string line;while((line=Console.ReadLine())!=null){try{int split=line.IndexOf('\t');string kind=line.Substring(0,split),target=Encoding.UTF8.GetString(Convert.FromBase64String(line.Substring(split+1)));uint flags=0x100,attributes=0;string iconPath=target;
+        if(kind=="folder"){iconPath="folder";attributes=DIR;flags|=0x10;}else if(kind=="file"){iconPath="file"+Path.GetExtension(target);attributes=0x80;flags|=0x10;}else if(kind!="drive"&&kind!="program")throw new Exception("Invalid icon kind");
+        SHFILEINFO info;if(SHGetFileInfo(iconPath,attributes,out info,(uint)Marshal.SizeOf(typeof(SHFILEINFO)),flags)==IntPtr.Zero||info.icon==IntPtr.Zero)throw new Exception("Windows icon unavailable");
+        try{using(var icon=(System.Drawing.Icon)System.Drawing.Icon.FromHandle(info.icon).Clone())using(var bitmap=icon.ToBitmap())using(var memory=new MemoryStream()){bitmap.Save(memory,System.Drawing.Imaging.ImageFormat.Png);output.WriteLine("{\"kind\":\"icon\",\"dataUrl\":"+Q("data:image/png;base64,"+Convert.ToBase64String(memory.ToArray()))+"}");}}finally{DestroyIcon(info.icon);}
+      }catch(Exception error){output.WriteLine("{\"error\":"+Q(error.Message)+"}");}output.Flush();}}
     static void Enumerate(string root) {
         output.WriteLine("{\"engine\":\"native-enumeration\",\"rootId\":\"0\"}");
         Row("0","",root,true,0,0,0,DIR,false);
@@ -241,6 +249,7 @@ class VoldeScan {
             }
         }
     }
+    [STAThread]
     static int Main(string[] args) {
         Console.OutputEncoding=new UTF8Encoding(false);
         bool scanOutput=args.Length>2 && !args[0].StartsWith("--",StringComparison.Ordinal);
@@ -269,6 +278,7 @@ class VoldeScan {
                 output.WriteLine("{\"success\":true}");output.Flush();return 0;
             }
             if(args.Length>0 && args[0]=="--metadata-server"){MetadataServer();return 0;}
+            if(args.Length>0 && args[0]=="--icon-server"){IconServer();return 0;}
             if(args.Length<1)throw new Exception("Target required");string root=Path.GetFullPath(args[0]);
             if(args.Length>1 && args[1]=="mft")Mft(root);else Enumerate(root);
             output.Flush();return 0;

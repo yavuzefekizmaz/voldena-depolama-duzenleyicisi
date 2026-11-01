@@ -1,54 +1,15 @@
 'use strict';
-const fs=require('fs');
-const path=require('path');
-const os=require('os');
-const {metadata}=require('./windows-metadata');
-
-// Shell icon requests are bounded independently of thumbnail extraction. For
-// offline/cloud paths we ask Windows for an empty local file's associated icon,
-// so rendering an icon never downloads the user's file.
-class NativeIcons {
-  constructor({app,isCloudPath=async()=>false,maxEntries=128}){
-    this.app=app;this.isCloudPath=isCloudPath;this.maxEntries=maxEntries;
-    this.cache=new Map();this.pending=new Map();this.queue=[];this.active=0;
-    this.sampleDirectory=null;this.samplePromise=null;this.closed=false;
-  }
-  get(target,options={}){
-    if(this.closed||typeof target!=='string'||!path.isAbsolute(target)||target.startsWith('\\\\')||target.includes('\0')||target.length>32767)return Promise.resolve({kind:'unavailable'});
-    const size=options.size==='small'?'small':'normal',requestKey=target.toLowerCase()+'|'+size;
-    if(this.pending.has(requestKey))return this.pending.get(requestKey);
-    if(this.queue.length>=128)return Promise.resolve({kind:'unavailable'});
-    const result=new Promise(resolve=>{this.queue.push({target,size,resolve});this.pump();});
-    this.pending.set(requestKey,result);result.finally(()=>this.pending.delete(requestKey));return result;
-  }
-  pump(){while(!this.closed&&this.active<2&&this.queue.length){const job=this.queue.shift();this.active++;this.load(job.target,job.size).then(job.resolve,()=>job.resolve({kind:'unavailable'})).finally(()=>{this.active--;this.pump();});}}
-  async sample(target,isDir){
-    if(!this.samplePromise)this.samplePromise=fs.promises.mkdtemp(path.join(os.tmpdir(),'voldena-shell-icons-')).then(directory=>{this.sampleDirectory=directory;return directory;});
-    await this.samplePromise;
-    if(isDir)return this.sampleDirectory;
-    const extension=path.extname(target).toLowerCase();
-    const safe=/^\.[a-z0-9]{1,12}$/.test(extension)?extension:'.file';
-    const file=path.join(this.sampleDirectory,'sample'+safe);
-    await fs.promises.writeFile(file,'',{flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error;});
-    return file;
-  }
-  async load(target,size){
-    const stat=await fs.promises.lstat(target);
-    let iconPath=target,useSample=stat.isSymbolicLink()||await this.isCloudPath(target);
-    if(!useSample){const windows=await metadata.get(target).catch(()=>null);useSample=!windows||!!(windows.attributes&(0x400|0x1000|0x40000|0x400000));}
-    if(useSample)iconPath=await this.sample(target,stat.isDirectory());
-    const key=iconPath.toLowerCase()+'|'+size+'|'+(useSample?'stock':stat.size+'|'+stat.mtimeMs);
-    if(this.cache.has(key)){const result=this.cache.get(key);this.cache.delete(key);this.cache.set(key,result);return result;}
-    const icon=await this.app.getFileIcon(iconPath,{size});
-    if(!icon||icon.isEmpty())return {kind:'unavailable'};
-    const result={kind:'icon',dataUrl:icon.toDataURL()};
-    if(result.dataUrl.length>1024*1024)return {kind:'unavailable'};
-    this.cache.set(key,result);while(this.cache.size>this.maxEntries)this.cache.delete(this.cache.keys().next().value);
-    return result;
-  }
-  async dispose(){this.closed=true;for(const job of this.queue)job.resolve({kind:'unavailable'});this.queue=[];this.cache.clear();
-    // Only a directory created by this instance is removed.
-    if(this.sampleDirectory&&path.dirname(this.sampleDirectory)===os.tmpdir()&&path.basename(this.sampleDirectory).startsWith('voldena-shell-icons-'))await fs.promises.rm(this.sampleDirectory,{recursive:true,force:true}).catch(()=>{});
-  }
+const fs=require('fs'),path=require('path'),readline=require('readline'),{spawn}=require('child_process');
+class NativeIcons{
+ constructor(){this.cache=new Map();this.queue=Promise.resolve();this.child=null;this.pending=null;}
+ get(target,options={}){if(typeof target!=='string'||!path.isAbsolute(target)||target.startsWith('\\\\')||target.includes('\0'))return Promise.resolve({kind:'unavailable'});const task=async()=>{
+  const root=path.parse(target).root;let kind=options.kind==='program'?(fs.existsSync(target)?'program':'file'):target.replace(/[\\/]+$/,'').toLowerCase()===root.replace(/[\\/]+$/,'').toLowerCase()?'drive':null;
+  if(!kind){const stat=await fs.promises.lstat(target).catch(()=>null);kind=stat?.isDirectory()?'folder':'file';}
+  const cacheKey=kind==='folder'?'folder':kind==='file'?'file:'+path.extname(target).toLowerCase():kind+':'+target.toLowerCase();if(this.cache.has(cacheKey))return this.cache.get(cacheKey);
+  if(!this.child)this.start();const result=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.pending=null;this.dispose();reject(new Error('Windows simgesi zaman aşımı.'));},8000);this.pending={resolve,reject,timer};this.child.stdin.write(kind+'\t'+Buffer.from(target).toString('base64')+'\n');});
+  if(result.dataUrl){this.cache.set(cacheKey,result);while(this.cache.size>256)this.cache.delete(this.cache.keys().next().value);}return result;
+ };const pending=this.queue.then(task).catch(()=>({kind:'unavailable'}));this.queue=pending;return pending;}
+ start(){const packed=process.resourcesPath&&path.join(process.resourcesPath,'native','VoldeScan.exe'),exe=packed&&fs.existsSync(packed)?packed:path.join(__dirname,'../native/bin/VoldeScan.exe');const child=spawn(exe,['--icon-server'],{windowsHide:true,stdio:['pipe','pipe','ignore']});this.child=child;readline.createInterface({input:child.stdout,crlfDelay:Infinity}).on('line',line=>{const pending=this.pending;if(!pending)return;this.pending=null;clearTimeout(pending.timer);try{const result=JSON.parse(line);result.error?pending.reject(new Error(result.error)):pending.resolve(result);}catch(e){pending.reject(e);}});const fail=()=>{if(this.child===child)this.child=null;if(this.pending){clearTimeout(this.pending.timer);this.pending.reject(new Error('Simge yardımcısı kapandı.'));this.pending=null;}};child.on('error',fail);child.on('exit',fail);}
+ dispose(){const child=this.child;this.child=null;child?.stdin.end();child?.kill();this.cache.clear();}
 }
 module.exports=NativeIcons;

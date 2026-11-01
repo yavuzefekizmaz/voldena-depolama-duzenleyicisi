@@ -1,17 +1,17 @@
 # Voldena Depolama Düzenleyicisi
 
-Windows için yerel disk analizi ve kontrollü depolama yönetimi. Sürüm 2.1.0.
+Windows için yerel disk analizi ve kontrollü depolama yönetimi. Sürüm 2.2.0. [Güncelleme ve doğrulama notları](docs/SURUM-2.2.0.md).
 
 ## Kullanım
 
 GitHub Releases bölümündeki **setup.exe** kurulum içindir; **portable.exe** kurulmadan çalışır. Her ikisi Windows yönetici izni ister. Uygulama önce görünür, ardından sistem sürücüsünün taramasını başlatır. İlk aşamada NTFS kayıtları hazırlanır; sonra sayaçlar ve klasör ağacı canlı dolar.
 
 - Dosya ağacında klasör satırının herhangi bir yerine tıklayarak açıp kapatın. Seçim ve işlem düğmeleri ayrı çalışır. Büyük klasörler sayfalar halinde yüklenir.
-- Ayarlardan Voldena / klasik tablo görünümü, dosya gruplama, dört tema ve sol menüyü değiştirebilirsiniz.
+- Ayarlardan Voldena / klasik tablo / Mix görünümü, dosya gruplama, koyu gri dahil temalar ve sol menüyü değiştirebilirsiniz. Disk değiştirirken taramalar ve açık klasörler uygulama belleğinde korunur.
 - Boyut mantıksal dosya uzunluğudur; ayrılmış alan dosyanın diskte kullandığı alandır. Seyrek dosyalar, sıkıştırma, bulut yer tutucuları ve sabit bağlantılar fark yaratır.
 - Büyük dosyalar 500 MB, 1 GB, 5 GB veya 10 GB eşikleriyle süzülür. Korumalı sistem ve uygulama verileri bu önerilerde gösterilmez. Uzantısız veya kaynağı bilinmeyen dosyalar otomatik olarak silinebilir sayılmaz.
 - Taşıma için hedef klasörü seçip planı onaylayın. Var olan dosyaların üzerine yazılmaz. Diskler arasında dosya kopyası SHA-256 ile doğrulanır; doğrulama tamamlanmadan kaynak kaldırılmaz. Açık dosya, bulut bağlantısı, özel NTFS veri akışı ve desteklenmeyen öznitelikler için işlem durdurulur.
-- Kurulu programlar Windows uygulama ayarlarından yönetilir. Program Files veya AppData klasörünü doğrudan taşımak desteklenmez.
+- Uygun masaüstü programları uygulama içinden doğrulanarak taşınabilir; eski kurulum yolu Windows klasör bağlantısıyla korunur. Çalışan programlar, servisler, sürücüler, anti-cheat ve özel dosyalar reddedilir. Windows paketli uygulamaları için paket yöneticisi kullanılır. Her programın taşınabileceği varsayılmaz.
 - Temizlik önce adayları gösterir ve onay ister. Eski önbellek dosyaları işlem öncesi yeniden doğrulanır. Geri Dönüşüm Kutusu seçeneği varsayılandır; disk alanı kutu boşaltıldığında açılır. WinSxS ve Windows Update temizliğini Windows yönetir.
 - Silme geçmişi otomatik silinmez. Teknik günlükler uygulama içinde okunur ve yaklaşık 8 MB ile sınırlandırılır; her ilerleme adımı için kayıt üretilmez. Kullanıcı veri klasörünü silmek veya diski kaybetmek geçmişi de kaybettirir; dışa aktarma ile yedekleyebilirsiniz.
 - Başlangıç, bildirim alanında açılma, masaüstü ve Başlat menüsü kısayolları ayarlardan değişir. Görev çubuğuna sabitleme Windows sağ tık menüsünden yapılır. Portable sürüm kalıcı başlangıç/kısayol kaydı oluşturmaz.

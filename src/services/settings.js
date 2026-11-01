@@ -2,20 +2,21 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULTS = Object.freeze({ theme: 'burgundy', launchAtLogin: false, startHidden: false,
-  desktopShortcut: false, startMenuShortcut: true, autoScan: true, updateRepository: 'yavuzefekizmaz/voldena-depolama-duzenleyicisi', viewMode: 'volde', sidebarCollapsed: false, groupFiles: true });
+const DEFAULTS = Object.freeze({ theme: 'dark', launchAtLogin: false, startHidden: false,
+  desktopShortcut: false, startMenuShortcut: true, autoScan: true, updateRepository: 'yavuzefekizmaz/voldena-depolama-duzenleyicisi', viewMode: 'mix', sidebarCollapsed: false, groupFiles: true, designVersion:2 });
 
 function validateSettings(input, base = DEFAULTS) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ayarlar geçersiz.');
-  const out = { ...base };
+  const out = { ...base, updateRepository: DEFAULTS.updateRepository };
   for (const key of Object.keys(DEFAULTS)) {
     if (!Object.hasOwn(input, key)) continue;
+    if(key==='designVersion'){out[key]=2;continue;}
     if (key === 'theme') {
-      if (!['burgundy', 'blue', 'green', 'light'].includes(input[key])) throw new Error('Tema geçersiz.');
+      if (!['dark', 'burgundy', 'blue', 'green', 'light'].includes(input[key])) throw new Error('Tema geçersiz.');
     } else if (key === 'viewMode') {
-      if (!['volde','classic'].includes(input[key])) throw new Error('Görünüm geçersiz.');
+      if (!['volde','classic','mix'].includes(input[key])) throw new Error('Görünüm geçersiz.');
     } else if (key === 'updateRepository') {
-      if (typeof input[key] !== 'string' || (input[key] && !/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(input[key]))) throw new Error('GitHub deposunu kullanıcı/depo biçiminde yazın.');
+      continue; // Release source is fixed by the application.
     } else if (typeof input[key] !== 'boolean') throw new Error('Ayar değeri geçersiz: ' + key);
     out[key] = input[key];
   }
@@ -25,7 +26,7 @@ function validateSettings(input, base = DEFAULTS) {
 class SettingsStore {
   constructor(directory) { this.file = path.join(directory, 'settings.json'); this.value = { ...DEFAULTS }; }
   async load() {
-    try { this.value = validateSettings(JSON.parse(await fs.promises.readFile(this.file, 'utf8'))); }
+    try { const saved=JSON.parse(await fs.promises.readFile(this.file,'utf8'));if(saved.designVersion!==2){saved.theme='dark';saved.viewMode='mix';}this.value=validateSettings(saved); }
     catch (error) { if (error.code !== 'ENOENT') this.loadError = 'Önceki ayarlar okunamadı; varsayılan ayarlar kullanılıyor.'; }
     return this.get();
   }

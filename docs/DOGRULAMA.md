@@ -1,5 +1,9 @@
 # Voldena doğrulama sonuçları
 
+## 2.2.0
+
+49 test ve 38 JavaScript sözdizimi kontrolü geçti. Gizli Electron penceresinde 1440×900 ve 1080×760 yatay taşma, Windows simgeleri ve sürücü geçişinde açık klasör/sonuç korunumu doğrulandı. Geri yükleme komutlarının PowerShell sözdizimi Windows ayrıştırıcısıyla denetlendi; gerçek geri yükleme oluşturulmadı. Ayrıntılar [SURUM-2.2.0.md](SURUM-2.2.0.md), paket özetleri [PAKETLER.json](PAKETLER.json) içindedir. Aşağıdaki bölüm önceki sürümün tarihsel kaydıdır.
+
 ## 2.1.0 son doğrulama
 
 40/40 otomatik test ve 34 JavaScript dosyası sözdizimi kontrolü geçti. Testler; gerçek C→D yapay dosya aktarımını, NTFS ek veri akışlarını, klasör taşıma ve tarih korunumunu, değişen kaynak/çakışma/iptal durumlarını, mükerrer grubunda bir kopyayı korumayı, kayıtlı tarama karşılaştırmasını ve güncelleme durum akışını içerir. Geri yükleme noktası için Windows sonucu taklit edilerek başarısız/sınırlı isteğin başarılı gösterilmemesi sınandı; gerçek sistem geri yükleme işlemi uygulanmadı.

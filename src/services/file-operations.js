@@ -69,4 +69,4 @@ class FileOperations{
  }
  async cleanTemporary(temp,parent){if(!below(temp,parent)||!path.basename(temp).startsWith('.voldena-move-'))throw new Error('Geçici taşıma yolu geçersiz.');const stats=await fs.promises.lstat(temp);if(stats.isSymbolicLink()||normalized(await fs.promises.realpath(temp))!==normalized(temp))throw new Error('Geçici yol bağlantıyla değiştirilmiş.');await fs.promises.rm(temp,{recursive:stats.isDirectory(),force:true});}
 }
-module.exports={FileOperations,hashFile,validateDestination,sameIdentity,namedStreams,streamSuffix,snapshotTree,verifySnapshot};
+module.exports={FileOperations,hashFile,validateDestination,sameIdentity,namedStreams,streamSuffix,snapshotTree,verifySnapshot,copyVerified};

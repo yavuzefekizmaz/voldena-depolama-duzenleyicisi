@@ -1,4 +1,8 @@
-# Voldena 2.1.0 — teslimat durumu
+# Voldena 2.2.0 — güncel durum
+
+1 Kasım 2026 güncellemesinin değişiklikleri, testleri ve sınırları [SURUM-2.2.0.md](SURUM-2.2.0.md) içindedir. Aşağıdaki 2.1.0 notları önceki teslimatın tarihsel kaydıdır. Güncel paket kayıtları PAKETLER.json içindedir.
+
+## Önceki 2.1.0 teslimatı
 
 30 Ekim 2026. Son kapsam sınırı, kullanım tüketimi geri bildirimi üzerine mevcut değişiklikleri doğrulayıp paketlemektir.
 

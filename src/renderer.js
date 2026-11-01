@@ -6,7 +6,7 @@ const PAGE_SIZE = 100;
 const MAX_TREE_ROWS = 1200;
 const DEFAULT_MIN_SIZE = 500 * 1024 * 1024;
 const state = {
-  drives: [], settings: { theme: 'burgundy', autoScan: true, viewMode: 'volde', groupFiles: false },
+  drives: [], settings: { theme: 'dark', autoScan: true, viewMode: 'mix', groupFiles: false },
   currentTarget: 'C:\\', treePath: 'C:\\', tab: 'tree', isScanning: false, isPaused: false,
   scanGeneration: 0, scanStats: null, scanStarted: 0, scanTimer: null, lastTreePaint: 0,
   treeCache: new Map(), expanded: new Set(), fileGroups: new Set(), treeSearch: '', treeSearchPage: null,
@@ -109,7 +109,7 @@ function pumpNativeIcons() {
     const target = nativeIconQueue.shift(), elements = nativeIconPending.get(target) || [];
     if (!elements.some(el => el.isConnected)) { nativeIconPending.delete(target); continue; }
     nativeIconActive++;
-    call('getFileIcon', target, { size: 'normal' }).then(result => {
+    call('getFileIcon', target, { size:'normal',kind:elements[0]?.dataset.nativeIconKind }).then(result => {
       const value = result?.dataUrl;
       if (typeof value !== 'string' || !/^data:image\/(png|jpeg|webp);base64,/i.test(value) || value.length > 2000000) return;
       rememberIcon(target, value); (nativeIconPending.get(target) || []).forEach(el => applyNativeIcon(el, value));
@@ -142,7 +142,7 @@ function pumpThumbnails() {
 }
 function riskTag(item) { const c = info(item); return `<span class="risk-label ${esc(c.risk)}" title="${esc(c.description)}">${esc(c.riskLabel)}</span>`; }
 function rowActions(item, canDelete = true) {
-  const c = info(item); return `<div class="row-actions"><button class="icon-button" data-action="details" data-path="${esc(item.path)}" title="Ne dosyası? Ayrıntıları gör" aria-label="Dosya ayrıntıları">ⓘ</button><button class="icon-button" data-action="move" data-path="${esc(item.path)}" ${c.canMove ? '' : 'disabled'} title="Başka klasöre veya diske taşı" aria-label="Dosyayı taşı">↗</button>${canDelete ? `<button class="icon-button danger-action" data-action="delete" data-path="${esc(item.path)}" ${c.canDelete ? '' : 'disabled'} title="Silme seçenekleri" aria-label="Dosyayı sil">×</button>` : ''}</div>`;
+  const c = info(item); return `<div class="row-actions"><button class="icon-button" data-action="details" data-path="${esc(item.path)}" title="Ne dosyası? Ayrıntıları gör" aria-label="Dosya ayrıntıları">Bilgi</button><button class="icon-button" data-action="move" data-path="${esc(item.path)}" ${c.canMove ? '' : 'disabled'} title="Başka klasöre veya diske taşı" aria-label="Dosyayı taşı">Taşı</button>${canDelete ? `<button class="icon-button danger-action" data-action="delete" data-path="${esc(item.path)}" ${c.canDelete ? '' : 'disabled'} title="Silme seçenekleri" aria-label="Dosyayı sil">Sil</button>` : ''}</div>`;
 }
 function findItem(p) {
   for (const entry of state.treeCache.values()) { const node = entry.items.find(x => key(x.path) === key(p)); if (node) return node; }
@@ -150,6 +150,7 @@ function findItem(p) {
 }
 
 function renderDrives() {
+  const picker=$('pageDriveSelect');picker.innerHTML=state.drives.filter(d=>!d.isCloudDrive).map(d=>`<option value="${esc(d.path)}">${esc(d.letter+': '+(d.volumeName||'Yerel disk'))}</option>`).join('');picker.value=state.currentTarget;picker.onchange=()=>startScan(picker.value,false);
   const localDrives = state.drives.filter(d => !d.isCloudDrive); $('drivesList').style.setProperty('--drive-count', Math.max(1, localDrives.length));
   $('drivesList').innerHTML = localDrives.map(d => `<button class="drive-item ${(key(d.path) === key(state.currentTarget) || key(state.currentTarget).startsWith(key(d.path) + '\\')) ? 'active' : ''}" data-drive="${esc(d.path)}" title="${esc(`${d.letter || ''}: ${d.volumeName || ''} · ${d.isSystem ? 'Sistem diski · ' : ''}${bytes(d.free)} boş / ${bytes(d.total)} · %${d.usedPercent || 0} dolu`)}"><span class="drive-icon" data-native-icon-path="${esc(d.path)}">${svgIcon('drive')}</span><span class="drive-card-content"><span class="drive-item-head"><span class="drive-item-title">${esc(d.letter ? `${d.letter}:` : d.deviceId || d.path)} <span class="drive-volume-name">${esc(d.volumeName || 'Yerel disk')}</span></span><span class="drive-percent">${d.usedPercent || 0}%</span></span><span class="drive-item-footer">${bytes(d.free)} boş / ${bytes(d.total)}</span>${d.isSystem ? '<span class="drive-system-label">Sistem diski</span>' : ''}<span class="drive-meter ${(d.usedPercent || 0) > 90 ? 'danger' : ''}"><i style="width:${Math.min(100, Math.max(0, d.usedPercent || 0))}%"></i></span></span></button>`).join('') || '<p class="muted">Yerel sürücü bulunamadı. Klasör seçebilirsin.</p>';
   $('allDrivesGrid').innerHTML = state.drives.map(d => `<article class="drive-card"><div class="drive-card-heading"><div><h3>${esc(d.letter ? `${d.letter}:` : d.deviceId)} ${esc(d.volumeName || '')}</h3><p>${esc(d.fileSystem || 'Dosya sistemi')} ${d.isSystem ? '· Sistem diski' : ''}${d.isCloudDrive ? '· Bulut bağlantısı' : ''}</p></div><span class="drive-icon" data-native-icon-path="${esc(d.path)}">${svgIcon('drive')}</span></div><div class="capacity-meter ${d.usedPercent > 90 ? 'danger' : ''}"><i style="width:${Math.min(100, Math.max(0, d.usedPercent || 0))}%"></i></div><div class="drive-card-metrics"><div><strong>${bytes(d.used)}</strong>Kullanılan</div><div><strong>${bytes(d.free)}</strong>Boş</div><div><strong>${bytes(d.total)}</strong>Toplam</div></div>${d.isCloudDrive ? '<p class="cloud-volume-note">Windows’un sanal sürücü için bildirdiği alan. Bulut hesabının kotası değildir.</p>' : ''}<button class="button" data-drive="${esc(d.path)}">Bu sürücüyü tara →</button></article>`).join('');
@@ -157,11 +158,11 @@ function renderDrives() {
 }
 async function loadDrives() { try { state.drives = await call('getDrives'); if (!Array.isArray(state.drives)) state.drives = state.drives.items || []; renderDrives(); } catch (e) { toast(errorMessage(e), 'error'); } }
 function setTab(tab) {
-  state.tab = tab;
+  state.tab = tab;$('btnExport').hidden=tab==='settings';
   document.querySelectorAll('.tab-content').forEach(x => x.classList.toggle('active', x.id === `tab-${tab}`));
   document.querySelectorAll('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab || tab === 'analysis' && x.dataset.tab === 'tree'));
   if (tab === 'large') loadLarge();
-  if (tab === 'cleanups') { renderCleanup(); loadRecommendations(); }
+  if (tab === 'cleanups') { renderCleanup(); if(!state.cleanup&&!state.cleanupBusy)loadCleanup(); loadRecommendations(); }
   if (tab === 'programs' && !state.programs.length) loadPrograms();
   if (tab === 'analysis') analysisTab(state.analysis.section);
 }
@@ -175,6 +176,7 @@ function scanControls() {
 }
 function progress(data) {
   if (!state.isScanning) return;
+  if(data.rootPath&&key(data.rootPath)!==key(state.currentTarget)){const view=driveViews.get(key(data.rootPath));if(view)view.scanStats=data;return;}
   state.scanStats = { ...state.scanStats, ...data };
   $('scanTotalBytes').textContent = bytes(data.totalBytes || data.logicalBytes || 0);
   $('scanFilesCount').textContent = number(data.filesCount); $('scanFoldersCount').textContent = number(data.foldersCount);
@@ -192,43 +194,42 @@ function progress(data) {
     if (state.tab === 'tree' && Date.now() - state.lastTreePaint > 650) { renderTree(); state.lastTreePaint = Date.now(); }
   }
 }
-async function startScan(target = state.currentTarget) {
+const driveViews=new Map();
+const viewFields=['treePath','scanStats','isScanning','isPaused','treeCache','expanded','fileGroups','treeSearch','treeSearchPage','largePage','activeNode','activePath'];
+function saveDriveView(){if(state.currentTarget)driveViews.set(key(state.currentTarget),Object.fromEntries(viewFields.map(f=>[f,state[f]])));}
+function paintSummary(){const s=state.scanStats||{};$('scanTargetLabel').textContent=state.currentTarget;$('scanTotalBytes').textContent=bytes(s.totalBytes||0);$('scanFilesCount').textContent=number(s.filesCount);$('scanFoldersCount').textContent=number(s.foldersCount);$('scanElapsed').textContent=elapsed(s.durationMs||s.elapsedMs||0);scanControls();renderCoverage(s);$('scanMethod').textContent=s.engine==='ntfs-mft'?'NTFS hızlı tarama':s.engine?'Yerel tarama':'Tarama bekleniyor';}
+async function finishDriveScan(target,result){let view=driveViews.get(key(target));if(view){view.scanStats=result.stats;view.isScanning=false;view.isPaused=false;}if(key(target)!==key(state.currentTarget))return;state.isScanning=false;state.isPaused=false;state.scanStats=result.stats;$('badgeLargeFiles').textContent=result.largeFilesCount?number(result.largeFilesCount):'';clearInterval(state.scanTimer);paintSummary();await fetchChildren(state.treePath);renderTree();if(state.tab==='large')loadLarge();if(state.tab==='cleanups')loadRecommendations();if(state.tab==='programs')loadPrograms();saveDriveView();}
+async function startScan(target = state.currentTarget, force = true) {
+  saveDriveView();state.selectedCleanup.clear();
+  const known=driveViews.get(key(target));
+  if(!force&&known){++state.scanGeneration;state.currentTarget=target;Object.assign(state,known);await call('selectScan',target);paintSummary();renderDrives();await fetchChildren(state.treePath);renderTree();renderLarge();if(state.tab==='large')loadLarge();if(state.tab==='programs')renderPrograms();if(state.tab==='cleanups'){renderCleanup();loadRecommendations();}return;}
+  await call('selectScan',target);
+
   if (!target) return;
   const generation = ++state.scanGeneration;
-  state.currentTarget = target; state.treePath = target; state.isScanning = true; state.isPaused = false;
-  state.scanStarted = Date.now(); state.scanStats = null; state.treeCache.clear(); state.expanded.clear(); state.fileGroups.clear(); state.treeSearch = ''; state.treeSearchPage = null;
+  state.currentTarget = target; state.treePath = target; state.activePath=target; state.isScanning = true; state.isPaused = false;
+  state.scanStarted = Date.now(); state.scanStats = null; state.treeCache=new Map(); state.expanded=new Set(); state.fileGroups=new Set(); state.treeSearch = ''; state.treeSearchPage = null;
   state.selected.clear(); state.largeRequest++; state.largePage = { items: [], total: 0, hasMore: false }; state.large.offset = 0; $('treeSearchInput').value = ''; $('scanTargetLabel').textContent = target;
   $('scanCoverage').hidden = true; $('scanTotalBytes').textContent = '0 B'; $('scanFilesCount').textContent = '0'; $('scanFoldersCount').textContent = '0'; $('scanElapsed').textContent = '00:00';
   $('scanCurrentPathText').textContent = 'Tarama hazırlanıyor…'; $('scanMethod').textContent = 'Tarama başlatılıyor';
-  scanControls(); renderDrives(); renderTree(); renderLarge();
+  scanControls(); renderDrives(); renderTree(); renderLarge();if(state.tab==='programs')renderPrograms();
   clearInterval(state.scanTimer); state.scanTimer = setInterval(() => { if (state.isScanning && !state.isPaused) $('scanElapsed').textContent = elapsed(Date.now() - state.scanStarted); }, 1000);
   try {
-    const result = await call('startScan', target, { minLargeFileSize: DEFAULT_MIN_SIZE });
-    if (generation !== state.scanGeneration) return;
-    state.isScanning = false; state.isPaused = false; clearInterval(state.scanTimer);
-    state.scanStats = { ...state.scanStats, ...result.stats }; scanControls();
-    const s = state.scanStats || {}; $('scanTotalBytes').textContent = bytes(s.totalBytes || s.logicalBytes || 0);
-    $('scanFilesCount').textContent = number(s.filesCount); $('scanFoldersCount').textContent = number(s.foldersCount);
-    $('scanElapsed').textContent = elapsed(s.durationMs || s.elapsedMs || Date.now() - state.scanStarted);
-    $('scanStatusBadge').textContent = result.canceled || result.cancelled || s.canceled || s.cancelled ? 'TARAMA DURDURULDU' : 'TARAMA TAMAMLANDI';
-    $('scanCurrentPathText').textContent = result.canceled || result.cancelled || s.canceled || s.cancelled ? 'Kısmi sonuçlar gösteriliyor.' : 'Sonuçlar hazır. Bir klasörü genişleterek inceleyebilirsin.';
-    $('scanMethod').textContent = s.engine === 'ntfs-mft' ? 'NTFS hızlı tarama' : s.engine === 'native-enumeration' ? 'Yerel Windows taraması' : 'Uyumlu dosya taraması';
-    renderCoverage(s); state.treeCache.clear(); await fetchChildren(state.treePath); if (generation !== state.scanGeneration) return; renderTree();
-    $('badgeLargeFiles').textContent = result.largeFilesCount ? number(result.largeFilesCount) : '';
-    if (state.tab === 'large') await loadLarge(); if (state.tab === 'cleanups') await loadRecommendations();
+    const result = await call('startScan', target, { minLargeFileSize: DEFAULT_MIN_SIZE,force });
+    await finishDriveScan(target,result);
   } catch (e) {
-    if (generation !== state.scanGeneration) return; state.isScanning = false; state.isPaused = false; clearInterval(state.scanTimer); scanControls();
+    const failed=driveViews.get(key(target));if(failed)failed.isScanning=false;if(key(target)!==key(state.currentTarget))return; state.isScanning = false; state.isPaused = false; clearInterval(state.scanTimer); scanControls();
     $('scanStatusBadge').textContent = 'TARAMA TAMAMLANAMADI'; $('scanMethod').textContent = 'Sonuçları kontrol et'; toast(errorMessage(e), 'error');
     if (state.treeCache.size) renderTree();
   }
 }
 function renderCoverage(s) {
   const notes = [];
-  if (s.coverageNote) notes.push(s.coverageNote);
-  if (s.engineNote) notes.push(s.engineNote);
-  if (!s.coverageNote && s.volumeUsedBytes != null) notes.push(`Windows kullanılan alan: ${bytes(s.volumeUsedBytes)}. Bulunan dosya boyutu: ${bytes(s.totalBytes || s.logicalBytes)}.${s.allocatedBytes != null ? ` Ölçülen ayrılmış alan: ${bytes(s.allocatedBytes)}.` : ''}${s.unaccountedBytes > 0 ? ` Açıklanamayan / erişilemeyen fark: ${bytes(s.unaccountedBytes)}.` : ''}`);
+  if (false && s.coverageNote) notes.push(s.coverageNote);
+  // Full measurement notes remain available in diagnostics.
+  if (false && !s.coverageNote && s.volumeUsedBytes != null) notes.push(`Windows kullanılan alan: ${bytes(s.volumeUsedBytes)}. Bulunan dosya boyutu: ${bytes(s.totalBytes || s.logicalBytes)}.${s.allocatedBytes != null ? ` Ölçülen ayrılmış alan: ${bytes(s.allocatedBytes)}.` : ''}${s.unaccountedBytes > 0 ? ` Açıklanamayan / erişilemeyen fark: ${bytes(s.unaccountedBytes)}.` : ''}`);
   if (s.errorsCount) notes.push(`${number(s.errorsCount)} öğe okunamadı. Sonuç tam sürücü kullanımını temsil etmeyebilir.`);
-  if (s.skippedLinks) notes.push(`${number(s.skippedLinks)} bağlantı döngü ve çift sayım için takip edilmedi.`);
+  if (false && s.skippedLinks) notes.push(`${number(s.skippedLinks)} bağlantı döngü ve çift sayım için takip edilmedi.`);
   const el = $('scanCoverage'); el.hidden = notes.length === 0; el.textContent = notes.join(' ');
   if (s.errorsCount) { const b = document.createElement('button'); b.className = 'button small'; b.textContent = 'Okunamayan öğeleri incele'; b.onclick = showDiagnostics; el.append(b); }
   if (s.errorsCount && typeof window.api?.restartAsAdmin === 'function') { const b = document.createElement('button'); b.className = 'button small'; b.textContent = 'Yönetici olarak yeniden aç'; b.onclick = () => call('restartAsAdmin').catch(e => toast(errorMessage(e), 'error')); el.append(b); }
@@ -254,30 +255,29 @@ async function fetchChildren(target, append = false) {
   finally { state.treeRequests.delete(k); }
 }
 function treeHeader() {
-  const table = $('treeTable'); const classic = state.settings.viewMode === 'classic';
+  const table = $('treeTable'); const classic = state.settings.viewMode !== 'volde';
   table.querySelector('colgroup').innerHTML = classic ? '<col style="width:auto"><col style="width:89px"><col style="width:89px"><col style="width:62px"><col style="width:62px"><col style="width:48px"><col style="width:78px"><col style="width:82px">' : '<col class="tree-name-col"><col class="tree-type-col"><col class="size-col"><col class="tree-share-col"><col class="actions-col">';
   table.querySelector('thead').innerHTML = classic ? '<tr><th><button class="sort-button" data-scope="tree" data-sort="name">Ad ↕</button></th><th class="align-right"><button class="sort-button" data-scope="tree" data-sort="size">Boyut ↓</button></th><th class="align-right">Ayrılmış</th><th class="align-right">Dosyalar</th><th class="align-right">Klasörler</th><th class="align-right">%</th><th>Değiştirilme</th><th class="align-right">İşlemler</th></tr>' : '<tr><th><button class="sort-button" data-scope="tree" data-sort="name">Ad ↕</button></th><th>Açıklama / durum</th><th class="align-right"><button class="sort-button" data-scope="tree" data-sort="size">Boyut ↓</button></th><th>Üst klasörde</th><th class="align-right">İşlemler</th></tr>';
 }
 function renderBreadcrumb() {
-  const root = state.currentTarget; const relative = state.treePath.slice(root.length).split(/[\\/]/).filter(Boolean); let path = root;
+  const root = state.currentTarget; const relative = (state.activePath||state.treePath).slice(root.length).split(/[\\/]/).filter(Boolean); let path = root;
   const crumbs = [{ label: root, path }]; for (const name of relative) { path = `${path.replace(/[\\/]$/, '')}\\${name}`; crumbs.push({ label: name, path }); }
   $('treeBreadcrumb').innerHTML = state.treeSearch ? `<span>Arama: ${esc(state.treeSearch)}</span><button data-action="clear-search">Aramayı temizle ×</button>` : crumbs.map((c, i) => `${i ? '<span>›</span>' : ''}<button data-action="focus" data-path="${esc(c.path)}">${esc(c.label)}</button>`).join('');
 }
 function treeRow(item, depth, group = false) {
-  const classic = state.settings.viewMode === 'classic'; const c = info(item); const p = item.path;
+  const classic = state.settings.viewMode !== 'volde'; const c = info(item); const p = item.path;
   const open = group ? state.fileGroups.has(key(p)) : state.expanded.has(key(p));
   const toggle = group ? `<button class="expand-button" data-action="group" data-path="${esc(p)}" aria-label="Dosya grubunu genişlet">${open ? '▾' : '▸'}</button>` : item.isDir ? `<button class="expand-button" data-action="expand" data-path="${esc(p)}" aria-label="Klasörü genişlet" aria-expanded="${open}">${state.treeRequests.has(key(p)) ? '·' : open ? '▾' : '▸'}</button>` : '<span class="expand-spacer"></span>';
     const name = group ? `<span class="file-group-name">{${number(item.count)} Dosyalar}</span>${item.loadedCount < item.count ? `<span class="group-loaded-count"> · ${number(item.loadedCount)} yüklenmiş</span>` : ''}` : `<span class="node-title"><button class="node-title-button" data-action="${item.isDir ? 'expand' : 'open'}" data-path="${esc(p)}" title="${esc(item.name)}">${esc(item.name)}</button></span>`;
   const percent = Math.min(100, Math.max(0, Number(item.percent || 0)));
-  const size = Number(item.size || item.logicalBytes || 0); const allocated = item.allocatedBytes ?? item.allocatedSize;
-  const nameCell = `<td><div class="node-name" style="padding-left:${Math.min(depth, 15) * (classic ? 14 : 18)}px" data-node-path="${esc(p)}" ${item.isDir && !group ? `data-folder="${esc(p)}"` : ''}>${toggle}${group ? `<span class="file-icon">${svgIcon('file')}</span>` : icon(item)}<div class="node-name-main">${name}${group ? '' : classic ? `<span class="risk-inline">${c.risk === 'protected' || c.risk === 'caution' || c.risk === 'unknown' ? riskTag(item) : ''}</span>` : `<span class="node-subtitle">${esc(item.isDir ? `${number(item.filesCount)} dosya · ${number(item.foldersCount)} klasör` : c.category)}</span>`}</div></div></td>`;
+  const size = Number(item.logicalSize ?? item.logicalBytes ?? item.size ?? 0); const allocated = item.allocatedBytes ?? item.allocatedSize;
+  const nameCell = `<td><div class="node-name" style="padding-left:${Math.min(depth, 15) * 28}px;--tree-guide:${Math.max(0,depth-1)*28+12}px" data-node-path="${esc(p)}" ${item.isDir && !group ? `data-folder="${esc(p)}"` : ''}>${toggle}${group ? `<span class="file-icon">${svgIcon('file')}</span>` : icon(item)}<div class="node-name-main">${name}${group ? '' : classic ? `<span class="risk-inline">${c.risk === 'protected' || c.risk === 'caution' || c.risk === 'unknown' ? riskTag(item) : ''}</span>` : `<span class="node-subtitle">${esc(item.isDir ? `${number(item.filesCount)} dosya · ${number(item.foldersCount)} klasör` : c.category)}</span>`}</div></div></td>`;
   const rowTarget = group ? `data-tree-group="${esc(p)}"` : item.isDir ? `data-tree-folder="${esc(p)}"` : `data-tree-file="${esc(p)}"`;
-  if (classic) return `<tr ${rowTarget}>${nameCell}<td class="align-right"><span class="size-value">${bytes(size)}</span>${item.partialSize ? '<span class="size-note">Yüklenenler</span>' : ''}</td><td class="align-right"><span class="size-value" title="${item.allocatedKnown === false ? 'Yaklaşık ayrılmış alan' : 'Diskte ayrılan alan'}">${allocated == null ? '—' : `${item.allocatedKnown === false ? '≈ ' : ''}${bytes(allocated)}`}</span></td><td class="classic-number">${number(item.isDir || group ? item.filesCount || item.count : 1)}</td><td class="classic-number">${number(item.foldersCount)}</td><td class="classic-number">${percent.toLocaleString('tr-TR', { maximumFractionDigits: 1 })}%</td><td class="classic-date">${date(item.mtime, true)}</td><td>${group ? '' : rowActions(item)}</td></tr>`;
-  return `<tr ${rowTarget}>${nameCell}<td class="description-cell"><div class="row-description" title="${esc(c.description)}">${esc(group ? 'Bu klasördeki dosyalar' : c.description)}</div>${group ? '' : riskTag(item)}</td><td class="align-right"><span class="size-value">${bytes(size)}</span>${item.partialSize ? '<span class="size-note">Yüklenenler</span>' : item.isSparse ? '<span class="size-note">Seyrek dosya</span>' : ''}</td><td><div class="share-bar"><i style="width:${percent}%"></i></div><span class="share-label">${percent.toLocaleString('tr-TR', { maximumFractionDigits: 1 })}%</span></td><td>${group ? '' : rowActions(item)}</td></tr>`;
+  if (classic) return `<tr ${rowTarget} data-depth="${depth}" class="${state.activeNode===key(p)?'active-node ':''}${open?'expanded-node':''}">${nameCell}<td class="align-right"><span class="size-value">${bytes(size)}</span>${item.partialSize ? '<span class="size-note">Yüklenenler</span>' : ''}</td><td class="align-right"><span class="size-value" title="${item.allocatedKnown === false ? 'Yaklaşık ayrılmış alan' : 'Diskte ayrılan alan'}">${allocated == null ? '—' : `${item.allocatedKnown === false ? '≈ ' : ''}${bytes(allocated)}`}</span></td><td class="classic-number">${number(item.isDir || group ? item.filesCount || item.count : 1)}</td><td class="classic-number">${number(item.foldersCount)}</td><td class="classic-number">${percent.toLocaleString('tr-TR', { maximumFractionDigits: 1 })}%</td><td class="classic-date">${date(item.mtime, true)}</td><td>${group ? '' : rowActions(item)}</td></tr>`;
+  return `<tr ${rowTarget} data-depth="${depth}" class="${state.activeNode===key(p)?'active-node ':''}${open?'expanded-node':''}">${nameCell}<td class="description-cell"><div class="row-description" title="${esc(c.description)}">${esc(group ? 'Bu klasördeki dosyalar' : c.description)}</div>${group ? '' : riskTag(item)}</td><td class="align-right"><span class="size-value">${bytes(size)}</span>${item.partialSize ? '<span class="size-note">Yüklenenler</span>' : item.isSparse ? '<span class="size-note">Seyrek dosya</span>' : ''}</td><td><div class="share-bar"><i style="width:${percent}%"></i></div><span class="share-label">${percent.toLocaleString('tr-TR', { maximumFractionDigits: 1 })}%</span></td><td>${group ? '' : rowActions(item)}</td></tr>`;
 }
 function renderTree() {
-  scheduleThumbnails();
-  treeHeader(); renderBreadcrumb(); const colspan = state.settings.viewMode === 'classic' ? 8 : 5;
+  treeHeader(); renderBreadcrumb(); const colspan = state.settings.viewMode !== 'volde' ? 8 : 5;
   let html = '', visible = 0, truncated = false;
   const renderNodes = (target, depth) => {
     const data = state.treeCache.get(key(target)); if (!data) return;
@@ -309,13 +309,14 @@ function renderTree() {
   } else renderNodes(state.treePath, 0);
   $('treeTableBody').innerHTML = html || empty(state.isScanning ? 'Tarama sürüyor' : state.treeSearch ? 'Sonuç bulunamadı' : 'Bu klasörde gösterilecek öğe yok', state.isScanning ? 'İlk klasör sonuçları geldikçe ağaç burada güncellenir.' : state.scanStats ? 'Başka bir klasör seçebilir veya aramayı değiştirebilirsin.' : 'Sistem diski pencere hazır olduğunda taranır. Bir klasör de seçebilirsin.', '▤', colspan);
   $('treeCountLabel').textContent = `${number(Math.min(visible, MAX_TREE_ROWS))} satır${state.isScanning ? ' · Canlı sonuçlar' : ''}${truncated ? ' · Daha ayrıntılı incelemek için klasöre çift tıkla.' : ''}`;
+  scheduleThumbnails();
 }
 async function expandNode(p) {
   if (state.treeSearch) { await focusFolder(p); return; }
-  const k = key(p); if (state.expanded.has(k)) { state.expanded.delete(k); renderTree(); return; }
+  state.activeNode=key(p); state.activePath=p; const k = key(p); if (state.expanded.has(k)) { state.expanded.delete(k); renderTree(); return; }
   state.expanded.add(k); renderTree(); if (!state.treeCache.has(k)) await fetchChildren(p); renderTree();
 }
-async function focusFolder(p) { state.treePath = p; state.treeSearch = ''; state.treeSearchPage = null; $('treeSearchInput').value = ''; if (!state.treeCache.has(key(p))) await fetchChildren(p); renderTree(); }
+async function focusFolder(p) { state.activePath=p;state.activeNode=key(p);state.treePath = p; state.treeSearch = ''; state.treeSearchPage = null; $('treeSearchInput').value = ''; if (!state.treeCache.has(key(p))) await fetchChildren(p); renderTree(); }
 async function searchTree(append = false) {
   const query = $('treeSearchInput').value.trim(); state.treeSearch = query; const token = ++state.treeSearchToken;
   if (!query) { state.treeSearchPage = null; renderTree(); return; }
@@ -328,19 +329,27 @@ async function loadLarge() {
   try {
     const data = page(await call('getLargeFiles', state.large)); if (token !== state.largeRequest) return;
     // The backend is authoritative; the UI also refuses protected and uncertain entries.
-    state.largePage = { ...data, items: data.items.filter(x => !['protected', 'caution', 'unknown'].includes(info(x).risk)) };
+    state.largePage = { ...data, items: data.items.filter(x => info(x).risk !== 'protected') };
     renderLarge();
   } catch (e) { toast(errorMessage(e), 'error'); }
 }
 function renderLarge() {
-  scheduleThumbnails();
   const data = state.largePage;
   $('largeFilesTableBody').innerHTML = data.items.map(item => `<tr><td><input type="checkbox" data-select-path="${esc(item.path)}" ${state.selected.has(item.path) ? 'checked' : ''} aria-label="${esc(item.name)} seç"></td><td><div class="node-name">${icon(item)}<div class="node-name-main"><div class="node-title"><button class="node-title-button" data-action="open" data-path="${esc(item.path)}" title="${esc(item.name)} · Aç">${esc(item.name)}</button></div><span class="node-subtitle">${esc(info(item).advice || info(item).description)}</span></div></div></td><td><span class="category-label"><i class="category-dot"></i>${esc(info(item).category)}</span></td><td class="align-right"><span class="size-value">${bytes(item.size)}</span>${item.allocatedBytes != null && item.allocatedBytes < item.size * .9 ? `<span class="size-note">Diskte ${bytes(item.allocatedBytes)}</span>` : ''}</td><td>${rowActions(item)}</td></tr>`).join('') || empty(state.isScanning ? 'Tarama devam ediyor' : 'Bu filtrede büyük dosya yok', state.isScanning ? 'Büyük kişisel dosyalar tarama tamamlandığında listelenir.' : 'En küçük boyutu veya dosya türünü değiştirebilirsin. Korunan dosyalar bu listede gösterilmez.', '▣');
   $('largeCountLabel').textContent = `${number(data.total)} dosya${data.total ? ` · ${number(state.large.offset + 1)}–${number(Math.min(state.large.offset + data.items.length, data.total))} gösteriliyor` : ''}`;
   $('largePageLabel').textContent = `${Math.floor(state.large.offset / PAGE_SIZE) + 1} / ${Math.max(1, Math.ceil(data.total / PAGE_SIZE))}`;
   $('btnLargePrev').disabled = state.large.offset === 0; $('btnLargeNext').disabled = !data.hasMore; renderSelection();
 }
+function reportRows(){
+ if(state.tab==='tree')return [...document.querySelectorAll('#treeTableBody [data-node-path]')].map(el=>findItem(el.dataset.nodePath));
+ if(state.tab==='programs')return state.programs.filter(p=>p.installLocation&&key(p.drive||p.installLocation).startsWith(key(state.currentTarget))&&p.name.toLocaleLowerCase('tr').includes($('programSearchInput').value.toLocaleLowerCase('tr')));
+ if(state.tab==='cleanups')return [...categories(),...state.recommendations];
+ if(state.tab==='drives')return state.drives.map(d=>({...d,name:d.letter+': '+d.volumeName,category:d.fileSystem,size:d.used,logicalSize:d.used,allocatedSize:d.total,description:bytes(d.free)+' boş'}));
+ if(state.tab==='analysis')return state.analysis.section==='duplicates'?(state.analysis.duplicateResult?.groups||[]).flatMap(g=>g.items||[]):state.analysis.mapItems;
+ return state.largePage.items;
+}
 function renderSelection() {
+  scheduleThumbnails();
   const items = [...state.selected.values()]; const size = items.reduce((s, f) => s + (f.size || 0), 0);
   $('largeSelectionCounter').textContent = `${number(items.length)} dosya seçildi${items.length ? ` · ${bytes(size)}` : ''}`;
   $('btnDeleteSelectedLarge').disabled = !items.length || items.some(x => !info(x).canDelete);
@@ -355,10 +364,10 @@ async function loadCleanup() {
   catch (e) { toast(errorMessage(e), 'error'); }
   finally { state.cleanupBusy = false; $('btnRescanCleanups').disabled = false; $('cleanProgress').hidden = true; loadRecommendations(); }
 }
-function categories() { return state.cleanup?.categories || []; }
+function categories() { return (state.cleanup?.categories||[]).filter(c=>c.action?state.drives.some(d=>d.isSystem&&key(d.path)===key(state.currentTarget)):(c.paths||[]).some(p=>p.slice(0,2).toLowerCase()===state.currentTarget.slice(0,2).toLowerCase())); }
 function renderCleanup() {
   if (!state.cleanup) return;
-  const s = state.cleanup.summary || {}; $('cleanTotalReclaimable').textContent = bytes(s.grandTotalBytes); $('cleanSafeReclaimable').textContent = bytes(s.safeTotalBytes); $('cleanTotalFilesCount').textContent = `${number(s.grandTotalFiles)} aday dosya`;
+  const list=categories();const s={grandTotalBytes:list.reduce((n,c)=>n+c.totalBytes,0),safeTotalBytes:list.filter(c=>c.autoClean).reduce((n,c)=>n+c.totalBytes,0),grandTotalFiles:list.reduce((n,c)=>n+c.totalFiles,0)}; $('cleanTotalReclaimable').textContent = bytes(s.grandTotalBytes); $('cleanSafeReclaimable').textContent = bytes(s.safeTotalBytes); $('cleanTotalFilesCount').textContent = `${number(s.grandTotalFiles)} aday dosya`;
   $('btnQuickClean').disabled = !categories().some(c => c.autoClean && c.totalBytes > 0);
   $('cleanupGrid').innerHTML = categories().filter(c => c.hasItems || c.totalBytes > 0 || c.action).map(c => `<article class="cleanup-card ${state.selectedCleanup.has(c.id) ? 'selected' : ''}"><div class="cleanup-card-top">${c.action || c.group === 'review' ? '<span class="file-icon">ⓘ</span>' : `<input type="checkbox" data-cleanup-id="${esc(c.id)}" ${state.selectedCleanup.has(c.id) ? 'checked' : ''} aria-label="${esc(c.title)} seç">`}<h3>${esc(c.title)}</h3><span class="risk-label ${c.autoClean ? 'cache' : 'caution'}">${esc(c.autoClean ? 'Düşük riskli' : c.safetyBadge || 'İncele')}</span></div><p>${esc(c.description)}</p><div class="cleanup-card-footer"><span class="cleanup-card-size">${bytes(c.totalBytes)}<small>${number(c.totalFiles)} dosya</small></span><button class="button small" data-action="cleanup-details" data-category="${esc(c.id)}">Ayrıntılar →</button></div></article>`).join('') || '<div class="empty-state"><span class="empty-symbol">✦</span><h3>Temizleme adayı bulunmadı</h3><p>Diğer önerilerde büyük kişisel dosyalarını inceleyebilirsin.</p></div>';
   const selectedBytes = categories().filter(c => state.selectedCleanup.has(c.id)).reduce((sum, c) => sum + (c.totalBytes || 0), 0); $('selectedCleanSum').textContent = `Seçilen: ${bytes(selectedBytes)}`; $('btnCleanSelected').disabled = !state.selectedCleanup.size;
@@ -464,12 +473,15 @@ async function loadPrograms() {
   try { state.programs = page(await call('getPrograms')).items; renderPrograms(); } catch (e) { $('programsList').innerHTML = `<div class="inline-message">${esc(errorMessage(e))}</div>`; }
 }
 function renderPrograms() {
-  const query = $('programSearchInput').value.toLocaleLowerCase('tr-TR'); const all = state.programs.filter(x => `${x.name} ${x.publisher || ''}`.toLocaleLowerCase('tr-TR').includes(query));
-  $('programsList').innerHTML = `<div class="program-count">${number(all.length)} uygulama · Boyutlar programların Windows'a bildirdiği tahminlerdir.</div>${all.slice(0, 200).map(p => `<article class="program-card"><span class="file-icon" ${p.installLocation ? `data-native-icon-path="${esc(p.installLocation)}"` : ''}>${svgIcon('apps')}</span><div class="program-info"><h3>${esc(p.name)}</h3><p>${esc([p.publisher, p.version, p.canMove ? 'Windows üzerinden taşınabilir' : 'Yeniden kurulum / uygulamanın taşıma aracı'].filter(Boolean).join(' · '))}</p></div><span class="program-size">${p.estimatedSize ? bytes(p.estimatedSize) : 'Boyut bilinmiyor'}</span><button class="button small" data-action="program-advice" data-program="${esc(p.packageFullName || p.id || p.name)}">${p.canMove ? 'Başka diske taşı' : 'Taşıma seçenekleri'}</button></article>`).join('')}${all.length > 200 ? '<div class="inline-message">İlk 200 eşleşme gösteriliyor. Arama ile listeyi daralt.</div>' : ''}`;
+  const query = $('programSearchInput').value.toLocaleLowerCase('tr-TR'); const all = state.programs.filter(x => x.installLocation && key(x.drive || x.installLocation).startsWith(key(state.currentTarget))).filter(x => `${x.name} ${x.publisher || ''}`.toLocaleLowerCase('tr-TR').includes(query));
+  $('programsList').innerHTML = `<div class="program-count">${number(all.length)} uygulama · Boyutlar programların Windows'a bildirdiği tahminlerdir.</div>${all.slice(0, 200).map(p => `<article class="program-card"><span class="file-icon" ${`data-native-icon-path="${esc(p.iconPath || 'C:\\voldena-application.exe')}" data-native-icon-kind="program"`}>${svgIcon('apps')}</span><div class="program-info"><h3>${esc(p.name)}</h3><p>${esc([p.publisher, p.version, p.canMove ? 'Uygulamadan taşınabilir' : 'Özel kurulum / sistem bileşeni'].filter(Boolean).join(' · '))}</p><span class="program-location">${esc(p.installLocation || 'Konum belirlenemedi')}</span></div><span class="program-size">${p.estimatedSize ? bytes(p.estimatedSize) : 'Boyut bilinmiyor'}</span><button class="button small" data-action="program-advice" data-program="${esc(p.packageFullName || p.id || p.name)}">${p.canMove ? 'Başka diske taşı' : 'Taşıma seçenekleri'}</button></article>`).join('')}${all.length > 200 ? '<div class="inline-message">İlk 200 eşleşme gösteriliyor. Arama ile listeyi daralt.</div>' : ''}`;
   scheduleNativeIcons();
 }
 async function programAdvice(name) {
   const p = state.programs.find(x => x.packageFullName === name || x.id === name || x.name === name); if (!p) return;
+  if(p.canMove && p.kind==='win32'){
+   try{const plan=await call('planDesktopMove',p.id);if(plan.canceled)return;openModal(p.name,'UYGULAMA TAŞIMA PLANI',`<dl class="details-grid"><dt>Kaynak</dt><dd>${esc(plan.source)}</dd><dt>Hedef</dt><dd>${esc(plan.destination)}</dd><dt>Boyut</dt><dd>${bytes(plan.totalBytes)}</dd></dl><div class="warning-box">${plan.warnings.map(esc).join('<br>')}</div>`,[{label:'Vazgeç',click:closeModal},{label:'Doğrula ve taşı',className:'primary',click:async()=>{modalBusy(true);try{$('modalBody').insertAdjacentHTML('beforeend','<progress id="desktopMoveProgress" max="100" value="0"></progress><p id="desktopMoveStatus">Uygulama kopyalanıp doğrulanıyor…</p><button class="button" id="cancelDesktop">İptal</button>');$('cancelDesktop').onclick=()=>call('cancelDesktopMove');const result=await call('executeDesktopMove',plan.id);modalBusy(false);closeModal();toast(result.message,'success');await loadPrograms();await loadDrives();}catch(e){modalBusy(false);toast(errorMessage(e),'error');}}}]);}catch(e){toast(errorMessage(e),'error');}return;
+  }
   if (p.canMove && p.packageFullName) {
     if (!openModal(p.name, 'WINDOWS UYGULAMASINI TAŞI', '<div class="loading-inline">Uygun hedef sürücüler okunuyor…</div>', [{ label: 'Kapat', click: closeModal }])) return;
     state.modalContext = p.packageFullName;
@@ -569,12 +581,12 @@ async function compareSnapshot(id) {
 }
 
 function applySettings() {
-  const s = state.settings; document.body.dataset.theme = ['burgundy', 'blue', 'green', 'light'].includes(s.theme) ? s.theme : 'burgundy';
-  document.body.classList.toggle('classic-view', s.viewMode === 'classic'); document.body.classList.toggle('sidebar-collapsed', !!s.sidebarCollapsed);
+  const s = state.settings; document.body.dataset.theme = ['dark', 'burgundy', 'blue', 'green', 'light'].includes(s.theme) ? s.theme : 'dark';
+  document.body.classList.toggle('classic-view', s.viewMode !== 'volde'); document.body.classList.toggle('mix-view',s.viewMode==='mix'); document.body.classList.toggle('sidebar-collapsed', !!s.sidebarCollapsed);
   document.querySelectorAll('.theme-option').forEach(x => x.classList.toggle('active', x.dataset.theme === s.theme));
   const fields = { settingLaunchAtLogin: 'launchAtLogin', settingStartHidden: 'startHidden', settingDesktopShortcut: 'desktopShortcut', settingStartMenuShortcut: 'startMenuShortcut', settingAutoScan: 'autoScan', settingGroupFiles: 'groupFiles' };
   for (const [id, field] of Object.entries(fields)) $(id).checked = !!s[field];
-  $('settingViewMode').value = s.viewMode === 'classic' ? 'classic' : 'volde'; $('settingUpdateRepository').value = s.updateRepository || '';
+  $('settingViewMode').value = ['classic','mix'].includes(s.viewMode)?s.viewMode:'volde'; $('settingUpdateRepository').value = s.updateRepository || '';
 }
 async function saveSettings(patch) {
   const previous = { ...state.settings }; state.settings = { ...state.settings, ...patch }; applySettings(); if ('viewMode' in patch || 'groupFiles' in patch) renderTree(); $('settingsSaveStatus').textContent = 'Kaydediliyor…';
@@ -628,7 +640,7 @@ function bindEvents() {
   $('btnRefreshDrives').onclick = loadDrives; $('btnSelectFolder').onclick = async () => { try { const p = await call('selectFolderDialog'); if (p) startScan(typeof p === 'string' ? p : p.path); } catch (e) { toast(errorMessage(e), 'error'); } };
   $('btnStartScan').onclick = () => startScan(); $('btnStopScan').onclick = async () => { $('btnStopScan').disabled = true; try { await call('stopScan'); $('scanStatusBadge').textContent = 'DURDURULUYOR'; } catch (e) { toast(errorMessage(e), 'error'); } finally { $('btnStopScan').disabled = false; } };
   $('btnPauseScan').onclick = async () => { try { await call(state.isPaused ? 'resumeScan' : 'pauseScan'); state.isPaused = !state.isPaused; scanControls(); } catch (e) { toast(errorMessage(e), 'error'); } };
-  $('btnExport').onclick = async () => { try { await call('exportReport', { format: 'csv' }); } catch (e) { toast(errorMessage(e), 'error'); } };
+  $('btnExport').onclick = async () => { try { await call('exportReport', {format:'csv',view:state.tab,target:state.treePath,drive:state.currentTarget,large:state.large,rows:reportRows()}); } catch (e) { toast(errorMessage(e), 'error'); } };
   $('btnMapRoot').onclick = () => loadSpaceMap(state.currentTarget); $('btnRefreshMap').onclick = () => loadSpaceMap(state.analysis.mapPath || state.currentTarget); $('btnRefreshStatistics').onclick = loadStatistics;
   $('btnFindDuplicates').onclick = findDuplicates; $('btnCancelAnalysis').onclick = () => call('cancelAnalysis').catch(e => toast(errorMessage(e), 'error'));
   $('btnMoreDuplicates').onclick = () => { state.analysis.duplicateLimit += 20; renderDuplicates(); }; $('btnDeleteDuplicates').onclick = confirmDuplicateDelete;
@@ -648,7 +660,7 @@ function bindEvents() {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); if (e.key === 'Tab' && !$('modalOverlay').hidden) { const focusable = [...$('modalOverlay').querySelectorAll('button:not(:disabled),input:not(:disabled),[tabindex="0"]')].filter(x => x.offsetParent !== null); if (!focusable.length) return; const first = focusable[0], last = focusable.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); } } });
   const settingFields = { settingLaunchAtLogin: 'launchAtLogin', settingStartHidden: 'startHidden', settingDesktopShortcut: 'desktopShortcut', settingStartMenuShortcut: 'startMenuShortcut', settingAutoScan: 'autoScan', settingGroupFiles: 'groupFiles' };
   for (const [id, field] of Object.entries(settingFields)) $(id).onchange = () => saveSettings({ [field]: $(id).checked });
-  $('settingViewMode').onchange = () => saveSettings({ viewMode: $('settingViewMode').value }); $('btnSaveRepository').onclick = () => saveSettings({ updateRepository: $('settingUpdateRepository').value.trim() });
+  $('settingViewMode').onchange = () => saveSettings({ viewMode: $('settingViewMode').value }); $('btnSaveRepository').hidden=true; $('settingUpdateRepository').readOnly=true;
   $('btnCheckUpdates').onclick = async () => { $('btnCheckUpdates').disabled = true; try { updateStatus(await call('checkForUpdates')); } catch (e) { updateStatus({ status: 'error', message: errorMessage(e) }); } finally { if (state.updateState) updateStatus(state.updateState); } };
   $('btnDownloadUpdate').onclick = async () => { $('btnDownloadUpdate').disabled = true; try { updateStatus(await call('downloadUpdate')); } catch (e) { updateStatus({ status: 'error', message: errorMessage(e) }); } finally { $('btnDownloadUpdate').disabled = false; if (state.updateState) updateStatus(state.updateState); } };
   $('btnInstallUpdate').onclick = () => call('installUpdate').catch(e => toast(errorMessage(e), 'error'));
@@ -664,10 +676,10 @@ function bindEvents() {
     const analysis = e.target.closest('[data-analysis-tab]'); if (analysis) { analysisTab(analysis.dataset.analysisTab); return; }
     const sub = e.target.closest('[data-settings-tab]'); if (sub) { settingsTab(sub.dataset.settingsTab); return; }
     const theme = e.target.closest('.theme-option[data-theme]'); if (theme) { saveSettings({ theme: theme.dataset.theme }); return; }
-    const drive = e.target.closest('[data-drive]'); if (drive) { setTab('tree'); startScan(drive.dataset.drive); return; }
+    const drive = e.target.closest('[data-drive]'); if (drive) { startScan(drive.dataset.drive,false); return; }
     const sort = e.target.closest('[data-sort]'); if (sort) { const scope = sort.dataset.scope === 'tree' ? state.treeSort : state.large; scope.sortOrder = scope.sortBy === sort.dataset.sort && scope.sortOrder === 'desc' ? 'asc' : 'desc'; scope.sortBy = sort.dataset.sort; if (sort.dataset.scope === 'tree') { if (state.treeSearch) await searchTree(); else { state.treeCache.clear(); state.expanded.clear(); await fetchChildren(state.treePath); renderTree(); } } else { state.large.offset = 0; loadLarge(); } return; }
     if (!e.target.closest('button,input,select,a')) { const row = e.target.closest('[data-tree-folder]'); if (row) { expandNode(row.dataset.treeFolder); return; } const file = e.target.closest('[data-tree-file]'); if (file) { document.querySelectorAll('.selected-file-row').forEach(x => x.classList.remove('selected-file-row')); file.classList.add('selected-file-row'); return; } const group = e.target.closest('[data-tree-group]'); if (group) { const k = key(group.dataset.treeGroup); if (state.fileGroups.has(k)) state.fileGroups.delete(k); else state.fileGroups.add(k); renderTree(); return; } }
-    const b = e.target.closest('[data-action]'); if (!b || b.disabled) return; const p = b.dataset.path; const a = b.dataset.action;
+    const b = e.target.closest('[data-action]'); if (!b || b.disabled) return; const p = b.dataset.path; const a = b.dataset.action;if(p&&state.tab==='tree'){state.activeNode=key(p);state.activePath=p;document.querySelectorAll('[data-node-path]').forEach(el=>el.closest('tr')?.classList.toggle('active-node',key(el.dataset.nodePath)===key(p)));$('treeBreadcrumb').textContent=p;}
     if (a === 'expand') expandNode(p); else if (a === 'focus') focusFolder(p); else if (a === 'group') { const k = key(p); if (state.fileGroups.has(k)) state.fileGroups.delete(k); else state.fileGroups.add(k); renderTree(); }
     else if (a === 'more-tree') { if ([...state.treeCache.values()].reduce((s, x) => s + x.items.length, 0) > MAX_TREE_ROWS) { toast('Daha fazla öğe için klasöre çift tıklayarak odaklan.'); return; } await fetchChildren(p, true); renderTree(); }
     else if (a === 'more-search') searchTree(true); else if (a === 'clear-search') { $('treeSearchInput').value = ''; searchTree(); }
@@ -679,6 +691,7 @@ function bindEvents() {
   window.api?.onCleanProgress?.(data => { $('cleanProgress').textContent = `${data.title || 'İnceleniyor'}${data.total ? ` · ${data.current}/${data.total}` : ''}`; });
   window.api?.onUpdateStatus?.(updateStatus);
   window.api?.onAnalysisProgress?.(duplicateProgress);
+  window.api?.onProgramMoveProgress?.(data=>{const p=$('desktopMoveProgress'),s=$('desktopMoveStatus');if(p&&data.totalBytes)p.value=100*(data.completedBytes||0)/data.totalBytes;if(s)s.textContent=(data.name||'Uygulama')+' · '+bytes(data.completedBytes||0)+' / '+bytes(data.totalBytes||0);});
   window.api?.onMoveProgress?.(data => { const bar = $('moveProgress'), text = $('moveProgressText'); if (bar) { if (data.percent != null) bar.value = data.percent; else if (data.totalBytes) bar.value = Math.min(100, 100 * (data.completedBytes || data.copiedBytes || data.bytesCopied || 0) / data.totalBytes); } if (text) text.textContent = data.message || `${data.phase === 'verifying' ? 'Kopya doğrulanıyor · ' : ''}${data.currentPath || data.name || 'Dosya işleniyor'}${data.percent != null ? ` · %${Math.round(data.percent)}` : ''}`; });
 }
 

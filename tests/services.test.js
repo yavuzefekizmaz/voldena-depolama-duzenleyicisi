@@ -8,7 +8,7 @@ async function fixture(t){const root=path.resolve(require('os').homedir());const
 
 test('settings reject unknown type, invalid repository and persist view preferences',async t=>{
  const dir=await fixture(t),store=new SettingsStore(dir);await store.load();
- assert.throws(()=>validateSettings({launchAtLogin:'yes'}));assert.throws(()=>validateSettings({updateRepository:'https://evil.example/repo'}));
+ assert.throws(()=>validateSettings({launchAtLogin:'yes'}));assert.equal(validateSettings({updateRepository:'https://evil.example/repo'}).updateRepository,'yavuzefekizmaz/voldena-depolama-duzenleyicisi');
  await store.save({theme:'blue',viewMode:'classic',groupFiles:false,updateRepository:'owner/repo'});
  const reloaded=new SettingsStore(dir);await reloaded.load();assert.equal(reloaded.get().theme,'blue');assert.equal(reloaded.get().groupFiles,false);
 });

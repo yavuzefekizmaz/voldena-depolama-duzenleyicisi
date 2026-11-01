@@ -1,6 +1,6 @@
 {
   "name": "voldena-depolama-duzenleyicisi",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Voldena gelişmiş disk analizi ve kontrollü depolama yönetimi",
   "main": "main.js",
   "author": "Voldena",
